@@ -81,6 +81,28 @@ class ApiSecurityTest extends TestCase
             ->assertJsonMissingPath('id');
     }
 
+    public function test_lecturer_course_assignments_and_roster_are_limited_to_owned_courses(): void
+    {
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        $otherLecturer = $this->user($school, 'lecturer');
+        $student = $this->user($school, 'student');
+        $ownedCourse = $this->course($school, $lecturer, 'OWNED');
+        $otherCourse = $this->course($school, $otherLecturer, 'NOTOWNED');
+        $this->enroll($ownedCourse, $student);
+        $assignment = $this->assignment($school, $ownedCourse, $lecturer);
+        Sanctum::actingAs($lecturer);
+
+        $this->getJson("/api/lecturer/courses/{$ownedCourse->id}/assignments")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $assignment->id);
+        $this->getJson("/api/lecturer/courses/{$ownedCourse->id}/students")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $student->id)
+            ->assertJsonMissingPath('data.0.email');
+        $this->getJson("/api/lecturer/courses/{$otherCourse->id}/assignments")->assertNotFound();
+        $this->getJson("/api/lecturer/courses/{$otherCourse->id}/students")->assertNotFound();
+    }
+
     public function test_student_cannot_access_another_students_submission(): void
     {
         [$school, $lecturer] = $this->schoolUser('lecturer');

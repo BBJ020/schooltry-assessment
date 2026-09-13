@@ -19,6 +19,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::prefix('lecturer')->middleware('role:lecturer')->group(function (): void {
         Route::get('/courses', [LecturerCourseController::class, 'index']);
         Route::post('/courses', [LecturerCourseController::class, 'store']);
+        Route::get('/courses/{course}/students', [LecturerCourseController::class, 'students']);
+        Route::get('/courses/{course}/assignments', [LecturerAssignmentController::class, 'index']);
         Route::post('/courses/{course}/assignments', [LecturerAssignmentController::class, 'store']);
         Route::get('/assignments/{assignment}/submissions', [LecturerSubmissionController::class, 'index']);
         Route::post('/submissions/{submission}/grade', [LecturerGradeController::class, 'store']);

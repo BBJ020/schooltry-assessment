@@ -6,6 +6,7 @@ use App\Actions\Courses\CreateCourse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Courses\StoreCourseRequest;
 use App\Http\Resources\CourseResource;
+use App\Http\Resources\StudentOptionResource;
 use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -29,5 +30,15 @@ class CourseController extends Controller
         ]));
 
         return CourseResource::make($course->load('lecturer:id,name'));
+    }
+
+    public function students(Request $request, int $course): AnonymousResourceCollection
+    {
+        $ownedCourse = Course::query()->visibleTo($request->user())->findOrFail($course);
+        Gate::forUser($request->user())->authorize('update', $ownedCourse);
+
+        return StudentOptionResource::collection(
+            $ownedCourse->students()->select(['users.id', 'users.name'])->orderBy('users.name')->paginate(100)
+        );
     }
 }

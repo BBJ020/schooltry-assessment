@@ -1,6 +1,6 @@
 # SchoolTry deployment guide
 
-This guide deploys the existing Laravel and Vue application to the existing Ubuntu EC2 instance. It does not provision AWS resources and does not place production credentials in GitHub or the repository.
+This guide describes deploying the existing Laravel and Vue application to a prepared Ubuntu EC2 instance. It does not prove or provision AWS resources and does not place production credentials in GitHub or the repository.
 
 ## Release model
 
@@ -93,7 +93,7 @@ The web root is `/var/www/schooltry/current/public`. Laravel's front controller 
 
 Set `expose_php = Off`, `display_errors = Off`, and production-safe logging in PHP. The template expects `/run/php/php8.3-fpm.sock` and service `php8.3-fpm`; change both the Nginx template and `PHP_FPM_SERVICE` if the installed version differs.
 
-TLS terminates at the Application Load Balancer with an ACM certificate. Nginx listens on private HTTP from the ALB; no fake or self-signed certificate is included. Restrict the EC2 HTTP security group to the ALB security group.
+**Recommended production edge:** terminate TLS at an Application Load Balancer with an ACM certificate. Nginx can then listen on private HTTP from the ALB; no fake or self-signed certificate is included. Restrict the EC2 HTTP security group to the ALB security group. If no ALB is deployed, an independently reviewed HTTPS termination design is required before public exposure.
 
 ## GitHub repository settings
 
@@ -169,9 +169,9 @@ For an already-approved non-interactive operation, pass `--yes`. The script atom
 
 ## Health and monitoring
 
-Laravel's built-in `GET /up` endpoint is configured in `bootstrap/app.php`. It returns a minimal status and is the ALB health-check path. It confirms the application can boot; it intentionally does not expose configuration, credentials, exception details, or tenant data. Use separate private monitoring for RDS/S3 dependency health so an intermittent downstream failure does not remove every instance from the ALB at once.
+Laravel's built-in `GET /up` endpoint is configured in `bootstrap/app.php`. It returns a minimal status and is used by the release script; it is also the recommended ALB health-check path if an ALB is deployed. It confirms the application can boot and intentionally does not expose configuration, credentials, exception details, or tenant data. Use separate private monitoring for RDS/S3 dependency health so an intermittent downstream failure does not remove every instance from service at once.
 
-Configure ALB health checks for HTTP `/up`, success code 200, with thresholds appropriate to the application startup time. Send Nginx, PHP-FPM, Laravel, ALB, RDS, and deployment logs to CloudWatch with retention and alarms for 5xx rate, latency, disk, CPU, memory, database connections, and failed deployments. Never log bearer tokens, passwords, or submitted private object keys.
+**Recommended:** configure ALB health checks for HTTP `/up`, success code 200, with thresholds appropriate to the application startup time. Send Nginx, PHP-FPM, Laravel, ALB, RDS, and deployment logs to CloudWatch with retention and alarms for 5xx rate, latency, disk, CPU, memory, database connections, and failed deployments. Never log bearer tokens, passwords, or submitted private object keys.
 
 ## Troubleshooting
 

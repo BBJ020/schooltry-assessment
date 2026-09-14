@@ -21,7 +21,7 @@ async function logout() {
                     <span class="grid h-10 w-10 place-items-center rounded-xl bg-indigo-600 font-black text-white">S</span>
                     <span>
                         <strong class="block text-base leading-tight">SchoolTry</strong>
-                        <small class="text-slate-500">{{ auth.user?.school?.name }}</small>
+                        <small class="text-slate-500">{{ auth.user?.school?.name || 'Platform administration' }}</small>
                     </span>
                 </RouterLink>
                 <div class="flex items-center gap-4">

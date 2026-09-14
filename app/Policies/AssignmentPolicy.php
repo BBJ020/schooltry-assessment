@@ -31,7 +31,9 @@ class AssignmentPolicy
 
     public function update(User $user, Assignment $assignment): bool
     {
-        return $this->sameSchool($user, $assignment) && $this->canManage($user, $assignment);
+        return $this->sameSchool($user, $assignment)
+            && $this->canManage($user, $assignment)
+            && ! $assignment->submissions()->exists();
     }
 
     public function delete(User $user, Assignment $assignment): bool
@@ -41,7 +43,12 @@ class AssignmentPolicy
 
     public function release(User $user, Assignment $assignment): bool
     {
-        return $this->update($user, $assignment);
+        return $this->sameSchool($user, $assignment) && $this->canManage($user, $assignment);
+    }
+
+    public function viewSubmissions(User $user, Assignment $assignment): bool
+    {
+        return $this->sameSchool($user, $assignment) && $this->canManage($user, $assignment);
     }
 
     private function sameSchool(User $user, Assignment $assignment): bool

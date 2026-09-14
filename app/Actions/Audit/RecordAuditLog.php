@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class RecordAuditLog
 {
     /** @param array<string, mixed>|null $oldValues @param array<string, mixed>|null $newValues */
-    public function execute(User $actor, string $action, Model $auditable, ?array $oldValues, ?array $newValues): AuditLog
+    public function execute(User $actor, string $action, Model $auditable, ?array $oldValues, ?array $newValues, ?int $schoolId = null): AuditLog
     {
         $request = app()->bound('request') ? request() : null;
 
@@ -22,7 +22,7 @@ class RecordAuditLog
         ]);
 
         $log->forceFill([
-            'school_id' => $actor->school_id,
+            'school_id' => $schoolId ?? $actor->school_id,
             'actor_id' => $actor->id,
             'auditable_type' => $auditable->getMorphClass(),
             'auditable_id' => $auditable->getKey(),

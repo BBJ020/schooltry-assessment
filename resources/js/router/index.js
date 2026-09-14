@@ -7,10 +7,30 @@ import StudentAssignment from '../pages/StudentAssignment.vue';
 import Results from '../pages/Results.vue';
 import AdminDashboard from '../pages/AdminDashboard.vue';
 import NotFound from '../pages/NotFound.vue';
+import SuperadminDashboard from '../pages/SuperadminDashboard.vue';
+import SchoolDetail from '../pages/SchoolDetail.vue';
+import AdminCourseDetail from '../pages/AdminCourseDetail.vue';
+import { canAccessRoles } from './access';
 
 const routes = [
     { path: '/', name: 'home', component: { template: '<div />' } },
     { path: '/login', name: 'login', component: Login, meta: { guest: true } },
+    {
+        path: '/superadmin', name: 'superadmin-dashboard', component: SuperadminDashboard,
+        meta: { requiresAuth: true, roles: ['superadmin'] },
+    },
+    {
+        path: '/superadmin/schools', name: 'superadmin-schools', component: SuperadminDashboard,
+        meta: { requiresAuth: true, roles: ['superadmin'] },
+    },
+    {
+        path: '/superadmin/admins', name: 'superadmin-admins', component: SuperadminDashboard,
+        meta: { requiresAuth: true, roles: ['superadmin'] },
+    },
+    {
+        path: '/superadmin/schools/:id', name: 'superadmin-school', component: SchoolDetail,
+        meta: { requiresAuth: true, roles: ['superadmin'] },
+    },
     {
         path: '/lecturer',
         name: 'lecturer-dashboard',
@@ -41,6 +61,16 @@ const routes = [
         component: AdminDashboard,
         meta: { requiresAuth: true, roles: ['admin'] },
     },
+    ...['users', 'students', 'lecturers', 'admins', 'courses', 'enrollments'].map((section) => ({
+        path: `/admin/${section}`,
+        name: `admin-${section}`,
+        component: AdminDashboard,
+        meta: { requiresAuth: true, roles: ['admin'], section },
+    })),
+    {
+        path: '/admin/courses/:id', name: 'admin-course', component: AdminCourseDetail,
+        meta: { requiresAuth: true, roles: ['admin'] },
+    },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFound },
 ];
 
@@ -60,7 +90,7 @@ router.beforeEach(async (to) => {
         return { name: 'login', query: { redirect: to.fullPath } };
     }
 
-    if (to.meta.roles?.length && !to.meta.roles.some((role) => auth.hasRole(role))) {
+    if (!canAccessRoles(auth.roles, to.meta.roles || [])) {
         return auth.landingRoute;
     }
 

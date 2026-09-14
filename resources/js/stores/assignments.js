@@ -23,6 +23,7 @@ export const useAssignmentsStore = defineStore('assignments', () => {
     const courseAssignments = ref({});
     const courseStudents = ref({});
     const assignmentSubmissions = ref({});
+    const assignmentSubmissionsLoaded = ref({});
     const studentAssignments = ref([]);
     const studentSubmissions = ref([]);
     const selectedAssignment = ref(null);
@@ -59,12 +60,6 @@ export const useAssignmentsStore = defineStore('assignments', () => {
         lecturerCourses.value = await allPages('/lecturer/courses');
     }, 'Unable to load courses.');
 
-    const createCourse = (payload) => run(async () => {
-        const course = resource(await api.post('/lecturer/courses', payload));
-        lecturerCourses.value.unshift(course);
-        return course;
-    }, 'Unable to create the course.');
-
     const loadCourseAssignments = (courseId) => run(async () => {
         courseAssignments.value[courseId] = await allPages(`/lecturer/courses/${courseId}/assignments`);
     }, 'Unable to load assignments.');
@@ -80,8 +75,38 @@ export const useAssignmentsStore = defineStore('assignments', () => {
         return assignment;
     }, 'Unable to create the assignment.');
 
+    const updateAssignment = (courseId, assignmentId, payload) => run(async () => {
+        let response;
+        if (payload instanceof FormData) {
+            payload.append('_method', 'PATCH');
+            response = await api.post(`/lecturer/assignments/${assignmentId}`, payload);
+        } else {
+            response = await api.patch(`/lecturer/assignments/${assignmentId}`, payload);
+        }
+
+        const assignment = resource(response);
+        const index = (courseAssignments.value[courseId] || []).findIndex((item) => item.id === assignmentId);
+        if (index !== -1) courseAssignments.value[courseId][index] = assignment;
+        return assignment;
+    }, 'Unable to update the assignment.');
+
+    const deleteAssignment = (courseId, assignmentId) => run(async () => {
+        await api.delete(`/lecturer/assignments/${assignmentId}`);
+        courseAssignments.value[courseId] = (courseAssignments.value[courseId] || [])
+            .filter((assignment) => assignment.id !== assignmentId);
+        delete assignmentSubmissions.value[assignmentId];
+        delete assignmentSubmissionsLoaded.value[assignmentId];
+    }, 'Unable to delete the assignment.');
+
+    const downloadLecturerAssignmentAttachment = (assignmentId) => run(async () => {
+        const response = await api.get(`/lecturer/assignments/${assignmentId}/attachment`, { responseType: 'blob' });
+        return response.data;
+    }, 'Unable to download the assignment file.');
+
     const loadAssignmentSubmissions = (assignmentId) => run(async () => {
+        assignmentSubmissionsLoaded.value[assignmentId] = false;
         assignmentSubmissions.value[assignmentId] = await allPages(`/lecturer/assignments/${assignmentId}/submissions`);
+        assignmentSubmissionsLoaded.value[assignmentId] = true;
     }, 'Unable to load submissions.');
 
     const gradeSubmission = (submissionId, payload) => run(async () => {
@@ -103,6 +128,11 @@ export const useAssignmentsStore = defineStore('assignments', () => {
         selectedAssignment.value = resource(await api.get(`/student/assignments/${assignmentId}`));
         return selectedAssignment.value;
     }, 'Unable to load the assignment.');
+
+    const downloadStudentAssignmentAttachment = (assignmentId) => run(async () => {
+        const response = await api.get(`/student/assignments/${assignmentId}/attachment`, { responseType: 'blob' });
+        return response.data;
+    }, 'Unable to download the assignment file.');
 
     const loadStudentSubmissions = () => run(async () => {
         studentSubmissions.value = await allPages('/student/submissions');
@@ -139,11 +169,14 @@ export const useAssignmentsStore = defineStore('assignments', () => {
 
     return {
         assignmentSubmissions,
+        assignmentSubmissionsLoaded,
         clearMessages,
         courseAssignments,
         courseStudents,
         createAssignment,
-        createCourse,
+        deleteAssignment,
+        downloadLecturerAssignmentAttachment,
+        downloadStudentAssignmentAttachment,
         error,
         gradeSubmission,
         grades,
@@ -162,6 +195,7 @@ export const useAssignmentsStore = defineStore('assignments', () => {
         studentAssignments,
         studentSubmissions,
         submitAssignment,
+        updateAssignment,
         validationErrors,
     };
 });

@@ -14,17 +14,12 @@ class CreateCourse
     public function __construct(private readonly RecordAuditLog $audit) {}
 
     /** @param array<string, mixed> $attributes */
-    public function execute(User $actor, array $attributes, ?User $lecturer = null): Course
+    public function execute(User $actor, array $attributes, User $lecturer): Course
     {
         Gate::forUser($actor)->authorize('create', Course::class);
-        $lecturer ??= $actor;
 
         if ((int) $lecturer->school_id !== (int) $actor->school_id || ! $lecturer->hasRole('lecturer')) {
             throw new AuthorizationException('The lecturer must belong to this school and have the lecturer role.');
-        }
-
-        if ($actor->hasRole('lecturer') && (int) $lecturer->id !== (int) $actor->id) {
-            throw new AuthorizationException('Lecturers may only create courses they own.');
         }
 
         return DB::transaction(function () use ($actor, $attributes, $lecturer): Course {

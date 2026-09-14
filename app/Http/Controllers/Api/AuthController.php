@@ -23,13 +23,18 @@ class AuthController extends Controller
             return response()->json(['message' => 'The provided credentials are invalid.'], 401);
         }
 
-        if (! $user->is_active || ! $user->school_id || ! $user->school()->where('is_active', true)->exists()) {
+        $isSuperadmin = $user->school_id === null && $user->hasRole('superadmin');
+        $hasActiveTenant = $user->school_id !== null && $user->school()->where('is_active', true)->exists();
+
+        if (! $user->is_active || (! $isSuperadmin && ! $hasActiveTenant)) {
             return response()->json(['message' => 'This account is unavailable.'], 403);
         }
 
         $token = $user->createToken($request->validated('device_name', 'schooltry-api'))->plainTextToken;
         $tenant = app(TenantContext::class);
-        $tenant->setFor($user);
+        if (! $isSuperadmin) {
+            $tenant->setFor($user);
+        }
 
         try {
             $user->load(['school:id,name,slug', 'roles:id,name']);

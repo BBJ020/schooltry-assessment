@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountContext;
+use App\Http\Middleware\EnsurePlatformContext;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureTenant;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -25,6 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant' => EnsureTenant::class,
             'role' => EnsureRole::class,
+            'platform' => EnsurePlatformContext::class,
+            'account' => EnsureAccountContext::class,
         ]);
         $middleware->prependToPriorityList(SubstituteBindings::class, EnsureTenant::class);
     })

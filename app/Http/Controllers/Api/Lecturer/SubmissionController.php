@@ -14,14 +14,23 @@ class SubmissionController extends Controller
 {
     public function index(Request $request, int $assignment): AnonymousResourceCollection
     {
-        $ownedAssignment = Assignment::query()->visibleTo($request->user())->findOrFail($assignment);
-        Gate::forUser($request->user())->authorize('update', $ownedAssignment);
+        $user = $request->user();
+
+        $ownedAssignment = Assignment::query()
+            ->visibleTo($user)
+            ->findOrFail($assignment);
+
+        Gate::forUser($user)->authorize('viewSubmissions', $ownedAssignment);
 
         return SubmissionResource::collection(
             AssignmentSubmission::query()
-                ->visibleTo($request->user())
+                ->visibleTo($user)
+                ->where('school_id', $user->school_id)
                 ->where('assignment_id', $ownedAssignment->id)
-                ->with(['student:id,name', 'grade'])
+                ->with([
+                    'student:id,name',
+                    'grade',
+                ])
                 ->latest('submitted_at')
                 ->paginate()
         );

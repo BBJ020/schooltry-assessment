@@ -18,6 +18,8 @@ class CourseResource extends JsonResource
             'description' => $this->description,
             'is_active' => $this->is_active,
             'lecturer' => $this->whenLoaded('lecturer', fn () => ['id' => $this->lecturer->id, 'name' => $this->lecturer->name]),
+            'student_count' => $this->whenCounted('students'),
+            'students' => ManagementUserResource::collection($this->whenLoaded('students')),
         ];
     }
 }

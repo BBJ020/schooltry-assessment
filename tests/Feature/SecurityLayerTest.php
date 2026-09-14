@@ -54,6 +54,7 @@ class SecurityLayerTest extends TestCase
 
         app(TenantContext::class)->setFor($owner);
 
+        $this->assertFalse(Gate::forUser($owner)->allows('create', Course::class));
         $this->assertTrue(Gate::forUser($owner)->allows('update', $owned));
         $this->assertFalse(Gate::forUser($owner)->allows('update', $notOwned));
         $this->assertSame([$owned->id], Course::query()->visibleTo($owner)->pluck('id')->all());

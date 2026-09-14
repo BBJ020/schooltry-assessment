@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import api, { apiError, clearStoredToken, getStoredToken, storeToken } from '../services/api';
+import { landingRouteForRoles } from '../router/access';
 
 export const useAuthStore = defineStore('auth', () => {
     const token = ref(getStoredToken());
@@ -12,12 +13,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     const isAuthenticated = computed(() => Boolean(token.value && user.value));
     const roles = computed(() => user.value?.roles || []);
-    const landingRoute = computed(() => {
-        if (roles.value.includes('lecturer')) return { name: 'lecturer-dashboard' };
-        if (roles.value.includes('student')) return { name: 'student-dashboard' };
-        if (roles.value.includes('admin')) return { name: 'admin-dashboard' };
-        return { name: 'login' };
-    });
+    const landingRoute = computed(() => landingRouteForRoles(roles.value));
 
     function hasRole(role) {
         return roles.value.includes(role);
@@ -92,6 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
         loading,
         login,
         logout,
+        roles,
         clearSession,
         token,
         user,

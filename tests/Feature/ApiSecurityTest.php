@@ -81,6 +81,19 @@ class ApiSecurityTest extends TestCase
             ->assertJsonMissingPath('id');
     }
 
+    public function test_lecturer_course_creation_endpoint_is_not_available(): void
+    {
+        [, $lecturer] = $this->schoolUser('lecturer');
+        Sanctum::actingAs($lecturer);
+
+        $this->postJson('/api/lecturer/courses', [
+            'code' => 'FORBIDDEN',
+            'title' => 'Lecturer-created course',
+        ])->assertMethodNotAllowed();
+
+        $this->assertDatabaseCount('courses', 0);
+    }
+
     public function test_lecturer_course_assignments_and_roster_are_limited_to_owned_courses(): void
     {
         [$school, $lecturer] = $this->schoolUser('lecturer');
@@ -190,6 +203,170 @@ class ApiSecurityTest extends TestCase
             ->assertJsonPath('data.0.id', $allId);
     }
 
+    public function test_lecturer_can_create_assignment_with_a_private_file_and_server_derived_metadata(): void
+    {
+        config(['filesystems.default' => 'local']);
+        Storage::fake('local');
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        $course = $this->course($school, $lecturer);
+        Sanctum::actingAs($lecturer);
+
+        $response = $this->post("/api/lecturer/courses/{$course->id}/assignments", [
+            ...$this->assignmentPayload(),
+            'file' => UploadedFile::fake()->create('course outline.pdf', 100, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertCreated()
+            ->assertJsonPath('data.attachment.file_name', 'course outline.pdf')
+            ->assertJsonMissingPath('data.file_path')
+            ->assertJsonMissingPath('data.attachment.file_path');
+
+        $assignment = Assignment::query()->findOrFail($response->json('data.id'));
+        $this->assertMatchesRegularExpression(
+            "#^assignments/{$school->id}/{$course->id}/{$assignment->id}/[0-9a-f-]+\\.pdf$#",
+            $assignment->file_path,
+        );
+        $this->assertSame('course outline.pdf', $assignment->file_name);
+        $this->assertSame('application/pdf', $assignment->file_mime_type);
+        $this->assertSame(102400, $assignment->file_size);
+        Storage::disk('local')->assertExists($assignment->file_path);
+        $this->assertSame('private', config('filesystems.disks.local.visibility'));
+    }
+
+    public function test_lecturer_can_create_assignment_without_a_file(): void
+    {
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        $course = $this->course($school, $lecturer);
+        Sanctum::actingAs($lecturer);
+
+        $assignmentId = $this->postJson("/api/lecturer/courses/{$course->id}/assignments", $this->assignmentPayload())
+            ->assertCreated()
+            ->assertJsonPath('data.attachment', null)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('assignments', [
+            'id' => $assignmentId,
+            'file_path' => null,
+            'file_name' => null,
+            'file_mime_type' => null,
+            'file_size' => null,
+        ]);
+    }
+
+    public function test_invalid_assignment_file_is_rejected(): void
+    {
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        $course = $this->course($school, $lecturer);
+        Sanctum::actingAs($lecturer);
+
+        $this->post("/api/lecturer/courses/{$course->id}/assignments", [
+            ...$this->assignmentPayload(),
+            'file' => UploadedFile::fake()->create('malware.exe', 10, 'application/x-msdownload'),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('file');
+
+        $this->assertDatabaseCount('assignments', 0);
+    }
+
+    public function test_oversized_assignment_file_is_rejected(): void
+    {
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        $course = $this->course($school, $lecturer);
+        Sanctum::actingAs($lecturer);
+
+        $this->post("/api/lecturer/courses/{$course->id}/assignments", [
+            ...$this->assignmentPayload(),
+            'file' => UploadedFile::fake()->create('too-large.pdf', 20481, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('file');
+
+        $this->assertDatabaseCount('assignments', 0);
+    }
+
+    public function test_unauthorized_lecturer_cannot_attach_to_or_download_from_another_course(): void
+    {
+        config(['filesystems.default' => 'local']);
+        Storage::fake('local');
+        [$school, $owner] = $this->schoolUser('lecturer');
+        $otherLecturer = $this->user($school, 'lecturer');
+        $course = $this->course($school, $owner);
+        Sanctum::actingAs($otherLecturer);
+
+        $this->post("/api/lecturer/courses/{$course->id}/assignments", [
+            ...$this->assignmentPayload(),
+            'file' => UploadedFile::fake()->create('private.pdf', 10, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertNotFound();
+
+        $assignment = $this->assignment($school, $course, $owner);
+        $this->getJson("/api/lecturer/assignments/{$assignment->id}/attachment")->assertNotFound();
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_authorized_student_can_view_and_download_an_assignment_attachment(): void
+    {
+        config(['filesystems.default' => 'local']);
+        Storage::fake('local');
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        $student = $this->user($school, 'student');
+        $course = $this->course($school, $lecturer);
+        $this->enroll($course, $student);
+        Sanctum::actingAs($lecturer);
+        $assignmentId = $this->post("/api/lecturer/courses/{$course->id}/assignments", [
+            ...$this->assignmentPayload(),
+            'file' => UploadedFile::fake()->createWithContent('reading.txt', 'Read chapter one.'),
+        ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($student);
+        $this->getJson("/api/student/assignments/{$assignmentId}")
+            ->assertOk()
+            ->assertJsonPath('data.attachment.file_name', 'reading.txt')
+            ->assertJsonMissingPath('data.attachment.file_path');
+        $this->get("/api/student/assignments/{$assignmentId}/attachment", ['Accept' => 'application/octet-stream'])
+            ->assertOk();
+    }
+
+    public function test_untargeted_student_cannot_access_an_assignment_attachment(): void
+    {
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        $student = $this->user($school, 'student');
+        $course = $this->course($school, $lecturer);
+        $assignment = $this->assignment($school, $course, $lecturer);
+        $assignment->forceFill(['file_path' => 'assignments/private.pdf', 'file_name' => 'private.pdf'])->save();
+        Sanctum::actingAs($student);
+
+        $this->getJson("/api/student/assignments/{$assignment->id}/attachment")->assertNotFound();
+    }
+
+    public function test_cross_tenant_student_cannot_access_an_assignment_attachment(): void
+    {
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        [, $otherStudent] = $this->schoolUser('student');
+        $course = $this->course($school, $lecturer);
+        $assignment = $this->assignment($school, $course, $lecturer);
+        $assignment->forceFill(['file_path' => 'assignments/private.pdf', 'file_name' => 'private.pdf'])->save();
+        Sanctum::actingAs($otherStudent);
+
+        $this->getJson("/api/student/assignments/{$assignment->id}/attachment")->assertNotFound();
+    }
+
+    public function test_assignment_file_storage_metadata_cannot_be_supplied_by_the_browser(): void
+    {
+        [$school, $lecturer] = $this->schoolUser('lecturer');
+        $course = $this->course($school, $lecturer);
+        Sanctum::actingAs($lecturer);
+
+        $this->postJson("/api/lecturer/courses/{$course->id}/assignments", [
+            ...$this->assignmentPayload(),
+            'file_path' => 'public/attacker-controlled.pdf',
+            'file_name' => 'trusted.pdf',
+            'file_mime_type' => 'application/pdf',
+            'file_size' => 10,
+            'school_id' => 999,
+            'course_id' => 999,
+            'lecturer_id' => $lecturer->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors([
+            'file_path', 'file_name', 'file_mime_type', 'file_size', 'school_id', 'course_id', 'lecturer_id',
+        ]);
+
+        $this->assertDatabaseCount('assignments', 0);
+    }
+
     public function test_submission_endpoint_is_rate_limited(): void
     {
         [$school, $lecturer] = $this->schoolUser('lecturer');
@@ -233,6 +410,7 @@ class ApiSecurityTest extends TestCase
 
     public function test_uploaded_file_metadata_and_private_s3_key_are_derived_server_side(): void
     {
+        config(['filesystems.default' => 's3']);
         Storage::fake('s3');
         [$school, $lecturer] = $this->schoolUser('lecturer');
         $student = $this->user($school, 'student');

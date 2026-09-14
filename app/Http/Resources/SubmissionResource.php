@@ -22,6 +22,10 @@ class SubmissionResource extends JsonResource
                 'file_size' => $this->file_size,
             ] : null,
             'submitted_at' => $this->submitted_at?->toIso8601String(),
+            'grade_status' => $this->when(
+                $request->user()?->hasRole('lecturer') && $this->relationLoaded('grade'),
+                fn () => $this->grade ? 'graded' : 'ungraded',
+            ),
             'grade' => GradeResource::make($this->whenLoaded('grade')),
         ];
     }

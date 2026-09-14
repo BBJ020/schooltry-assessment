@@ -20,7 +20,7 @@ class CoursePolicy
 
     public function create(User $user): bool
     {
-        return $this->hasTenant($user) && ($user->hasRole('admin') || $user->hasRole('lecturer'));
+        return $this->hasTenant($user) && $user->hasRole('admin');
     }
 
     public function update(User $user, Course $course): bool

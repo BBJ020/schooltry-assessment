@@ -28,8 +28,10 @@ class SubmitAssignment
         $storedPath = null;
         $storedMetadata = [];
 
+        $disk = Storage::disk(config('filesystems.default'));
+
         if ($file instanceof UploadedFile) {
-            $storedPath = Storage::disk('s3')->putFile(
+            $storedPath = $disk->putFile(
                 "schools/{$student->school_id}/assignments/{$assignment->id}",
                 $file,
                 'private',
@@ -40,9 +42,14 @@ class SubmitAssignment
             }
 
             $originalName = basename($file->getClientOriginalName());
+
             $storedMetadata = [
                 'file_path' => $storedPath,
-                'original_filename' => Str::limit(preg_replace('/[^\pL\pN._ -]/u', '_', $originalName) ?: 'upload', 255, ''),
+                'original_filename' => Str::limit(
+                    preg_replace('/[^\pL\pN._ -]/u', '_', $originalName) ?: 'upload',
+                    255,
+                    ''
+                ),
                 'mime_type' => $file->getMimeType(),
                 'file_size' => $file->getSize(),
             ];
@@ -59,7 +66,10 @@ class SubmitAssignment
                 &$oldFilePath,
             ): AssignmentSubmission {
                 $submission = AssignmentSubmission::query()
-                    ->where('assignment_id', $assignment->id)->where('student_id', $student->id)->first();
+                    ->where('assignment_id', $assignment->id)
+                    ->where('student_id', $student->id)
+                    ->first();
+
                 $old = $submission?->getAttributes();
                 $oldFilePath = $submission?->file_path;
 
@@ -68,28 +78,40 @@ class SubmitAssignment
                 }
 
                 $submission ??= new AssignmentSubmission;
-                $submission->fill(Arr::only($attributes, ['submission_text']));
+
+                $submission->fill(
+                    Arr::only($attributes, ['submission_text'])
+                );
+
                 $submission->fill($storedMetadata);
+
                 $submission->forceFill([
                     'school_id' => $student->school_id,
                     'assignment_id' => $assignment->id,
                     'student_id' => $student->id,
                     'submitted_at' => now(),
                 ])->save();
-                $this->audit->execute($student, $old ? 'submission.updated' : 'submission.created', $submission, $old, $submission->getAttributes());
+
+                $this->audit->execute(
+                    $student,
+                    $old ? 'submission.updated' : 'submission.created',
+                    $submission,
+                    $old,
+                    $submission->getAttributes()
+                );
 
                 return $submission;
             });
         } catch (Throwable $exception) {
             if ($storedPath) {
-                Storage::disk('s3')->delete($storedPath);
+                $disk->delete($storedPath);
             }
 
             throw $exception;
         }
 
         if ($storedPath && $oldFilePath && $oldFilePath !== $storedPath) {
-            Storage::disk('s3')->delete($oldFilePath);
+            $disk->delete($oldFilePath);
         }
 
         return $submission;

@@ -5,6 +5,7 @@ import ErrorAlert from '../components/ErrorAlert.vue';
 import LoadingState from '../components/LoadingState.vue';
 import ValidationErrors from '../components/ValidationErrors.vue';
 import { useAssignmentsStore } from '../stores/assignments';
+import { saveBlob } from '../utils/download';
 import { safeFilename } from '../utils/filename';
 
 const route = useRoute();
@@ -39,6 +40,13 @@ async function submit() {
         if (fileInput.value) fileInput.value.value = '';
     } catch { /* Validation errors are displayed below. */ }
 }
+
+async function downloadAssignmentFile() {
+    try {
+        const blob = await store.downloadStudentAssignmentAttachment(assignmentId);
+        saveBlob(blob, store.selectedAssignment.attachment.file_name);
+    } catch { /* Safe error is displayed by the store. */ }
+}
 </script>
 
 <template>
@@ -58,6 +66,9 @@ async function submit() {
                     <span class="text-sm font-semibold text-slate-500">{{ store.selectedAssignment.maximum_score }} points</span>
                 </div>
                 <p class="mt-5 whitespace-pre-wrap text-slate-700">{{ store.selectedAssignment.description }}</p>
+                <button v-if="store.selectedAssignment.attachment" class="btn-secondary mt-5" type="button" @click="downloadAssignmentFile">
+                    Download assignment file: {{ safeFilename(store.selectedAssignment.attachment.file_name) }}
+                </button>
                 <p class="mt-5 text-sm text-slate-500">Due: {{ store.selectedAssignment.due_at ? new Date(store.selectedAssignment.due_at).toLocaleString() : 'No deadline' }}</p>
             </article>
 

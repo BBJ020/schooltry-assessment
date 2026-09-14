@@ -130,21 +130,16 @@ Then run:
 php artisan db:seed --class=LocalDevelopmentSeeder
 ```
 
-Development email addresses:
+Development accounts created by `LocalDevelopmentSeeder`:
 
-- `superadmin@schooltry.test`
-- `admin@schooltry.test`
-- `lecturer@schooltry.test`
-- `student@schooltry.test`
-
-No development or production password is published in this repository.
+These are local development accounts only. The password is the local value supplied through `SCHOOLTRY_DEV_PASSWORD`; no password is committed to the repository.
 
 ## Running Tests and Checks
 
 ```powershell
 php artisan test
-vendor/bin/pint --test
-vendor/bin/phpstan analyse
+.\vendor\bin\pint --test
+.\vendor\bin\phpstan analyse
 composer audit
 npm run test:frontend
 npm audit
@@ -161,18 +156,37 @@ npm run build
 
 ## AWS Deployment
 
-The repository contains an EC2 deployment design using Nginx/PHP-FPM, a non-public RDS MySQL database, private S3 objects, and an EC2 IAM role. Runtime secrets belong in the server’s shared environment file or an external secret manager, never source control.
+The deployed assessment uses EC2 with Nginx/PHP-FPM, RDS MySQL, private S3 storage, and an EC2 IAM role. Runtime secrets belong in the server’s shared environment file or an external secret manager, never source control.
 
 Application Load Balancer, ACM-managed HTTPS, Route 53, multi-AZ capacity, and CloudWatch-based monitoring are documented as **Recommended** production enhancements; their live deployment is not asserted by this repository.
 
 - [Deployment Runbook](docs/DEPLOYMENT.md)
-- [AWS Architecture](docs/AWS_ARCHITECTURE.md)
 
 ## Live Demo
 
-**Live URL:** `<production URL>`
+**Live URL:** `http://108.129.112.49`
 
-Production credentials must be provided through a secure, separate channel and must not be committed to this README.
+### Demo Accounts
+
+#### Platform
+| Role | Email |
+|---|---|
+| Superadmin | `superadmin@schooltry.test` |
+
+#### SUST
+| Role | Email |
+|---|---|
+| School Administrator | `admin@sust.schootry.com` |
+| Lecturer | `james.falaye@sust.schootry.com` |
+| Student | `zhen.babatunde@sust.schootry.com` |
+| Student | `adenike.adepoju@sust.schootry.com` |
+
+#### SCST
+| Role | Email |
+|---|---|
+| School Administrator | `admin@scst.schootry.com` |
+
+Demo passwords are intentionally not published in the repository and should be provided through a secure, separate channel.
 
 ## Security Documentation
 
@@ -191,7 +205,6 @@ Production credentials must be provided through a secure, separate channel and m
 | Security analysis | Five principal risks, breach walkthrough, controls, residual risk, and monitoring | [Security Analysis](SECURITY_ANALYSIS.md) |
 | Code review | Findings against the supplied vulnerable grading example and corrected architecture | [Code Review Report](CODE_REVIEW_REPORT.md) |
 
-The detailed evidence mapping is in the [Submission Checklist](docs/SUBMISSION_CHECKLIST.md).
 
 ## Repository Structure
 
@@ -210,7 +223,6 @@ tests/                   Backend feature/unit tests and frontend security tests
 
 ## Known Limitations and Future Improvements
 
-- **Outstanding:** replace the live-demo placeholder with the approved deployment URL.
 - **Recommended:** terminate public HTTPS through an ALB with ACM and Route 53, then restrict EC2 ingress to the ALB.
 - **Recommended:** add multi-AZ/high-availability capacity appropriate to production demand.
 - **Recommended:** centralize Nginx, PHP-FPM, Laravel, ALB, RDS, S3, and deployment telemetry in CloudWatch with alerting.

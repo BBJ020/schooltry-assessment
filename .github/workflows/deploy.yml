@@ -1,0 +1,122 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Successful CI workflow run ID for a push to main
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: schooltry-production
+  cancel-in-progress: false
+
+jobs:
+  verify-ci:
+    name: Verify successful main CI
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.verify.outputs.result }}
+    steps:
+      - name: Validate CI workflow run
+        id: verify
+        uses: actions/github-script@v7
+        env:
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+        with:
+          result-encoding: string
+          script: |
+            const runId = Number(process.env.CI_RUN_ID);
+            if (!Number.isSafeInteger(runId) || runId <= 0) {
+              core.setFailed('ci_run_id must be a positive workflow run ID.');
+              return;
+            }
+
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+
+            const valid = run.path === '.github/workflows/ci.yml'
+              && run.event === 'push'
+              && run.head_branch === 'main'
+              && run.status === 'completed'
+              && run.conclusion === 'success';
+
+            if (!valid) {
+              core.setFailed('Deployment requires a successful completed CI run triggered by a push to main.');
+              return;
+            }
+
+            return run.head_sha;
+
+  deploy:
+    name: Deploy verified release
+    needs: verify-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+    env:
+      COMMIT_SHA: ${{ needs.verify-ci.outputs.commit_sha }}
+      SSH_PORT: ${{ vars.EC2_SSH_PORT || '22' }}
+
+    steps:
+      - name: Check out verified commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT_SHA }}
+
+      - name: Create source archive
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=.env \
+            --exclude=node_modules \
+            --exclude=vendor \
+            --exclude=public/build \
+            -czf "$RUNNER_TEMP/schooltry-$COMMIT_SHA.tar.gz" .
+
+      - name: Configure pinned SSH host identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+
+      - name: Upload release inputs
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          scp -P "$SSH_PORT" \
+            -i "$RUNNER_TEMP/ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            "$RUNNER_TEMP/schooltry-$COMMIT_SHA.tar.gz" \
+            "$EC2_USER@$EC2_HOST:/tmp/"
+
+      - name: Activate release on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -p "$SSH_PORT" \
+            -i "$RUNNER_TEMP/ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            "$EC2_USER@$EC2_HOST" \
+            "sudo /usr/local/sbin/schooltry-deploy '$COMMIT_SHA-${{ github.run_id }}' '/tmp/schooltry-$COMMIT_SHA.tar.gz'"
+
+      - name: Remove runner credentials
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/ssh"

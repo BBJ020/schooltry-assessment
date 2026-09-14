@@ -15,7 +15,7 @@ final class EnsureTenant
     {
         $user = $request->user();
 
-        abort_unless($user, 401);
+        abort_unless($user !== null, 401);
         abort_unless($user->is_active && $user->school_id, 403, 'An active school account is required.');
         abort_unless($user->school()->where('is_active', true)->exists(), 403, 'The school is inactive.');
 

@@ -6,7 +6,9 @@ use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/** @property Carbon|null $graded_at */
 class Grade extends Model
 {
     use BelongsToSchool;
@@ -28,6 +30,7 @@ class Grade extends Model
         return $this->belongsTo(School::class);
     }
 
+    /** @return BelongsTo<Assignment, $this> */
     public function assignment(): BelongsTo
     {
         return $this->belongsTo(Assignment::class);

@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
+/** @property Carbon|null $submitted_at */
 class AssignmentSubmission extends Model
 {
     use BelongsToSchool;
@@ -29,11 +31,13 @@ class AssignmentSubmission extends Model
         return $this->belongsTo(School::class);
     }
 
+    /** @return BelongsTo<Assignment, $this> */
     public function assignment(): BelongsTo
     {
         return $this->belongsTo(Assignment::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function student(): BelongsTo
     {
         return $this->belongsTo(User::class, 'student_id');

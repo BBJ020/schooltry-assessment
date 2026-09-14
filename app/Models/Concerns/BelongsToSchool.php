@@ -19,7 +19,7 @@ trait BelongsToSchool
             }
         });
 
-        static::saving(function (Model $model): void {
+        static::saving(function (self $model): void {
             $schoolId = app(TenantContext::class)->schoolId();
 
             if ($schoolId === null) {

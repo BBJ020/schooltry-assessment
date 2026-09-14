@@ -55,6 +55,7 @@ class User extends Authenticatable
         ];
     }
 
+    /** @return BelongsTo<School, $this> */
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);

@@ -204,43 +204,6 @@ There is no `updated_at`. `AuditLog` model hooks and `AppendOnlyBuilder` reject 
 
 Global Sanctum expiration is configured separately and defaults to 480 minutes.
 
-## Laravel infrastructure tables
-
-These framework tables are also created by migrations.
-
-### `password_reset_tokens`
-
-| Column | Type | Nullable | Key/index | Purpose |
-| --- | --- | --- | --- | --- |
-| `email` | varchar | No | Primary key | Password-reset identity |
-| `token` | varchar | No | — | Reset token |
-| `created_at` | timestamp | Yes | — | Creation time |
-
-### `sessions`
-
-| Column | Type | Nullable | Key/index | Purpose |
-| --- | --- | --- | --- | --- |
-| `id` | varchar | No | Primary key | Session identifier |
-| `user_id` | unsigned bigint | Yes | Index; no FK | Optional user reference |
-| `ip_address` | varchar(45) | Yes | — | Client IP |
-| `user_agent` | text | Yes | — | Client user agent |
-| `payload` | longtext | No | — | Serialized session payload |
-| `last_activity` | integer | No | Index | Last activity epoch |
-
-### `cache` and `cache_locks`
-
-| Table | Columns and keys | Purpose |
-| --- | --- | --- |
-| `cache` | `key` varchar PK; `value` mediumtext; `expiration` integer | Database cache store |
-| `cache_locks` | `key` varchar PK; `owner` varchar; `expiration` integer | Atomic cache locks |
-
-### `jobs`, `job_batches`, and `failed_jobs`
-
-| Table | Columns and keys | Purpose |
-| --- | --- | --- |
-| `jobs` | bigint `id` PK; indexed `queue`; longtext `payload`; tinyint `attempts`; nullable int `reserved_at`; int `available_at`; int `created_at` | Queued jobs |
-| `job_batches` | varchar `id` PK; `name`; job counters; longtext `failed_job_ids`; nullable mediumtext `options`; nullable cancellation/finish integers; creation integer | Batch state |
-| `failed_jobs` | bigint `id` PK; unique `uuid`; text connection/queue; longtext payload/exception; timestamp `failed_at` | Failed-job diagnostics |
 
 ## Indexing and access implications
 

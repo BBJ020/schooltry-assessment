@@ -31,7 +31,7 @@ The EC2 instance needs:
 - a deployment user that can upload to `/tmp` and run only the required deployment commands through `sudo`
 - Nginx and PHP-FPM enabled through `systemd`
 
-Do not grant unrestricted inbound SSH. Restrict it to an approved administration path or GitHub Actions egress strategy. For a mature production setup, GitHub OIDC plus AWS Systems Manager Run Command avoids a long-lived SSH key; adopting it requires an AWS IAM/SSM change and is therefore documented as a future hardening option, not applied here.
+Do not grant unrestricted inbound SSH. Restrict administrative SSH access and use a dedicated deployment key.
 
 Install the reviewed deployment and rollback scripts as root-owned commands. Repeat this manual installation whenever those scripts are intentionally changed:
 
@@ -60,14 +60,7 @@ Generate `APP_KEY` once with `php artisan key:generate --show` in a trusted envi
 
 The template deliberately omits `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The AWS SDK uses the EC2 instance role. The configured bucket is `schooltry-assignment-uploads-2026-bjf` in `eu-west-1`, and Sanctum tokens expire after 480 minutes.
 
-For this assessment, AWS Systems Manager Parameter Store SecureString is the cost-conscious default for `APP_KEY`, `DB_PASSWORD`, and any mail/API secrets. Give the EC2 role narrowly scoped `ssm:GetParameter` and KMS decrypt access, retrieve the values during controlled server bootstrap, and materialize the root-owned shared `.env`. Parameter Store is not automatically queried on every request. Secrets Manager is preferable when managed rotation is required, but may add cost.
-
-Example parameter names (names only, never values):
-
-```text
-/schooltry/production/app-key
-/schooltry/production/db-password
-```
+For the assessment design, `APP_KEY`, `DB_PASSWORD`, and other production secrets can be stored in AWS Systems Manager Parameter Store or Secrets Manager and retrieved during controlled server setup. Secret values are never committed to GitHub.
 
 ## RDS and S3 checks
 
@@ -93,11 +86,11 @@ The web root is `/var/www/schooltry/current/public`. Laravel's front controller 
 
 Set `expose_php = Off`, `display_errors = Off`, and production-safe logging in PHP. The template expects `/run/php/php8.3-fpm.sock` and service `php8.3-fpm`; change both the Nginx template and `PHP_FPM_SERVICE` if the installed version differs.
 
-**Recommended production edge:** terminate TLS at an Application Load Balancer with an ACM certificate. Nginx can then listen on private HTTP from the ALB; no fake or self-signed certificate is included. Restrict the EC2 HTTP security group to the ALB security group. If no ALB is deployed, an independently reviewed HTTPS termination design is required before public exposure.
+**ALB/HTTPS design:** if an Application Load Balancer is used, terminate HTTPS with ACM at the ALB, forward private HTTP to EC2, and restrict EC2 application traffic to the ALB security group. The current assessment deployment may use the EC2 public endpoint directly.
 
 ## GitHub repository settings
 
-Create a GitHub environment named `production` and add required reviewers before enabling deployments. Restrict deployment branches to `main`.
+The deployment workflow can use a GitHub environment named `production`. If environment protection is enabled, restrict deployment to `main` and require approval before production deployment.
 
 Add exactly these environment secrets:
 
@@ -117,11 +110,11 @@ The pinned `known_hosts` value prevents accepting an attacker-controlled SSH hos
 1. Review both workflow files, scripts, Nginx template, server paths, PHP version, and service names.
 2. Install the reviewed root-owned deploy/rollback commands and the narrowly scoped `sudoers` rule.
 3. Create `/var/www/schooltry/shared/.env` from the production example and retrieve secrets from Parameter Store through the instance role.
-4. Create the `production` GitHub environment, its required-reviewer protection, and the four environment secrets.
+4. Configure the deployment environment and secrets required by the workflow.
 5. Install and test Nginx. The first deployment creates the remaining release/shared storage directories.
 6. Merge to `main` and wait for the `CI` workflow triggered by that push to succeed.
 7. Open the successful CI run and note its numeric run ID.
-8. Manually run `Deploy production`, provide that CI run ID, and approve the protected environment deployment.
+8. Manually run `Deploy production` and provide the successful CI run ID.
 
 The deploy workflow verifies via the GitHub API that the supplied run belongs to `.github/workflows/ci.yml`, was triggered by a push to `main`, completed, and succeeded. It checks out that exact commit, uploads a credential-free source archive, and invokes `deployment/deploy.sh` on EC2.
 
@@ -171,7 +164,6 @@ For an already-approved non-interactive operation, pass `--yes`. The script atom
 
 Laravel's built-in `GET /up` endpoint is configured in `bootstrap/app.php`. It returns a minimal status and is used by the release script; it is also the recommended ALB health-check path if an ALB is deployed. It confirms the application can boot and intentionally does not expose configuration, credentials, exception details, or tenant data. Use separate private monitoring for RDS/S3 dependency health so an intermittent downstream failure does not remove every instance from service at once.
 
-**Recommended:** configure ALB health checks for HTTP `/up`, success code 200, with thresholds appropriate to the application startup time. Send Nginx, PHP-FPM, Laravel, ALB, RDS, and deployment logs to CloudWatch with retention and alarms for 5xx rate, latency, disk, CPU, memory, database connections, and failed deployments. Never log bearer tokens, passwords, or submitted private object keys.
 
 ## Troubleshooting
 

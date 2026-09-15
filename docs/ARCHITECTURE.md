@@ -141,7 +141,7 @@ Unreleased scores and feedback are omitted at the query/API boundary; they are n
 ## API and Vue integration
 
 - `resources/js/services/api.js` sets the API base, `Accept`, XMLHttpRequest, and bearer Authorization headers.
-- The assessment stores the token in `sessionStorage`, which limits persistence to the browser tab/session but remains readable by JavaScript. Avoiding `v-html` and rendering user content through Vue interpolation reduces XSS exposure; a mature deployment should maintain strong CSP and dependency hygiene.
+- The assessment stores the token in `sessionStorage`, which limits persistence to the browser tab/session but remains readable by JavaScript. User content is rendered through escaped Vue interpolation rather than `v-html`.
 - A generic Axios response interceptor clears the local token and invokes navigation handling on 401.
 - `apiError` maps 401, 403, 404, 422, and 429 to safe user messages and exposes only Laravel validation errors for 422.
 - The Pinia auth store performs login/logout/me hydration. The assignments store loads paginated API collections, sends multipart requests when files exist, and never invents tenant visibility.
@@ -182,10 +182,4 @@ Mutation actions call `RecordAuditLog` with actor, action, target, old/new value
 - A root-owned server script prepares an unprivileged staging release, links shared `.env`/storage, installs/builds, caches Laravel configuration/routes/views, runs forward migrations, atomically switches `current`, reloads PHP-FPM, health-checks `/up`, and retains five releases.
 - Rollback atomically repoints the symlink and does not reverse migrations.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) and [AWS_ARCHITECTURE.md](AWS_ARCHITECTURE.md). ALB, ACM, Route 53, multi-AZ application instances, and centralized CloudWatch monitoring are recommended production topology unless separately confirmed as deployed; this repository does not provision AWS resources.
-
-## Known operational constraints
-
-- The Nginx template caps bodies at 12 MiB, while Laravel permits assignment attachments up to 20 MB. **Recommended:** align Nginx and PHP limits with the intended application maximum plus multipart overhead.
-- Explicit authentication-failure/read-denial audit events are not implemented. **Recommended:** aggregate safe edge/application metrics without logging tokens or sensitive content.
-- Forced password change after temporary-password issuance is not implemented. **Recommended:** add a first-login reset state and MFA for privileged accounts.
+See [DEPLOYMENT.md](DEPLOYMENT.md) and [AWS_ARCHITECTURE.md](AWS_ARCHITECTURE.md).

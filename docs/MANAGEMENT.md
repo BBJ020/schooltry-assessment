@@ -1,4 +1,4 @@
-# Superadmin and school-admin management
+# Superadmin and School-Admin Management
 
 SchoolTry separates platform administration from tenant administration.
 
@@ -8,31 +8,6 @@ SchoolTry separates platform administration from tenant administration.
 
 The `platform` middleware requires an active, school-less superadmin and explicitly clears `TenantContext` before and after the request. A superadmin is rejected from ordinary tenant management routes because `EnsureTenant` requires a school.
 
-## Local development accounts
-
-The optional local seeder refuses to run unless `APP_ENV=local` and requires a caller-supplied password of at least 12 characters. It is not called by deployment or production migrations.
-
-In local `.env`, set:
-
-```text
-SCHOOLTRY_DEV_PASSWORD=<your-local-password-of-at-least-12-characters>
-```
-
-Then run:
-
-```bash
-php artisan migrate
-php artisan db:seed --class=LocalDevelopmentSeeder
-```
-
-Local account emails are:
-
-- `superadmin@schooltry.test`
-- `admin@schooltry.test`
-- `lecturer@schooltry.test`
-- `student@schooltry.test`
-
-All use the locally supplied `SCHOOLTRY_DEV_PASSWORD`. Never copy that variable or these development accounts into production. For production, run `RoleSeeder` deliberately if the four role records do not yet exist, then create the first superadmin through a controlled operator procedure.
 
 ## Security behavior
 
@@ -44,5 +19,3 @@ All use the locally supplied `SCHOOLTRY_DEV_PASSWORD`. Never copy that variable 
 - Temporary passwords are generated cryptographically, hashed by the User model, returned once, and never written to audit logs.
 - Enrollment queries require same-school users with the student role. Writes include only `school_id`, `course_id`, `student_id`, and the schema's existing `enrolled_at`; the pivot model has timestamps disabled.
 - Sensitive mutations create append-only audit entries with actor, target, action, and applicable school context.
-
-The migration making `role_user.school_id` nullable is required for platform roles. Its new unique `(role_id, user_id)` index prevents duplicate assignments even when `school_id` is `NULL`. Before deliberately rolling that migration back, all platform-role rows must be removed because the old schema cannot represent them.
